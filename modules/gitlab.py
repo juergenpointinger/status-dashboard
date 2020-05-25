@@ -21,11 +21,11 @@ class GitLab():
 
   def get_request(self, endpoint):
     url = self.api + endpoint
-    logger.debug("GitLab request: " + url)  
+    logger.debug('GitLab request: ' + url)  
     response = self.gl_session.get(url = url)
 
     if response.status_code != 200:
-      raise Exception(response.text)
+      logger.error('{}: {}'.format(endpoint, response.text))
     return response
 
   def get_all_pages(self, endpoint):
@@ -52,29 +52,33 @@ class GitLab():
   ##########################################################
 
   def get_group_name(self, group_id):
-    return self.get_request('/groups/{}'.format(group_id)).json()['name']
+    response = self.get_request('/groups/{}'.format(group_id))
+    if response.status_code == 200:
+      return response.json()['name']
+    return ''
 
   def get_project_name(self, project_id):
-    return self.get_request('/projects/{}'.format(project_id)).json()['name']
+    response = self.get_request('/projects/{}'.format(project_id))
+    if response.status_code == 200:
+      return response.json()['name']
+    return ''
 
   ##########################################################
 
-  def get_commits(self, project_id):
-    issues = self.get_all_pages('/projects/{}/repository/commits?ref_name=master&since={}'.format(project_id, self.timespan()))
+  def get_commits(self, project_id, ref_name):
+    issues = self.get_all_pages('/projects/{}/repository/commits?ref_name={}&since={}'.format(project_id, ref_name, self.timespan()))
     retval = [dict(issue, **{'project_id': project_id}) for issue in issues]
     return retval
 
   ##########################################################
 
   def get_issues(self, group_id, search):
-    issues = self.get_all_pages('/groups/{}/issues?{}&scope=all'.format(group_id, search))
-    retval = issues
-    return retval
+    return self.get_all_pages('/groups/{}/issues?{}&scope=all'.format(group_id, search))
 
   ##########################################################
 
   def get_weights(self, group_id, search):
-    issues = self.get_issues(group_id, search) # 'milestone={}'.format(milestone_title)
+    issues = self.get_issues(group_id, search)
     
     total_issue_weight = 0
     closed_issue_weight = 0
@@ -98,6 +102,9 @@ class GitLab():
 
   def get_milestones(self, group_id):
     milestones = self.get_all_pages('/groups/{}/milestones?search=Sprint'.format(group_id))
+    if len(milestones) == 0:
+      return []
+
     milestones = list(filter(self.no_upcoming_milestones_predicate, milestones))
     milestones.sort(key=self.sort_by_milestone_title)
     milestones = milestones[-5:]
@@ -106,43 +113,55 @@ class GitLab():
     for milestone in milestones:
       milestone_id = str(milestone['id'])
       issues = self.get_all_pages('/groups/{}/milestones/{}/issues'.format(group_id, milestone_id))
-      retval = retval + issues
-    retval = retval
+      if len(issues) > 0:
+        retval = retval + issues
     return retval
 
   ##########################################################
 
-  def get_pipelines(self, project_id):
-    pipelines = self.get_all_pages('/projects/{}/pipelines?ref=master&scope=finished&updated_after={}'.format(project_id, self.timespan()))
+  def get_pipelines(self, project_id, ref_name):
+    pipelines = self.get_all_pages('/projects/{}/pipelines?ref={}&scope=finished&updated_after={}'.format(project_id, ref_name, self.timespan()))
     
     retval = []
     for pipeline in pipelines:
       pipeline_id = pipeline['id']       
       pipeline_details = pipeline.copy()
 
-      detail = self.get_request('/projects/{}/pipelines/{}'.format(project_id, pipeline_id)).json()
-      test_report = self.get_request('/projects/{}/pipelines/{}/test_report'.format(project_id, pipeline_id)).json()
+      response = self.get_request('/projects/{}/pipelines/{}'.format(project_id, pipeline_id))
+      detail = response.json() if response.status_code == 200 else None
+
+      response = self.get_request('/projects/{}/pipelines/{}/test_report'.format(project_id, pipeline_id))
+      test_report = response.json() if response.status_code == 200 else None
 
       # Add project id
       pipeline_details.update({'project_id': project_id})
 
       # Add coverage details
-      coverage = detail['coverage'] if detail['coverage'] is not None else 0
-      pipeline_details.update({'duration':'{}'.format(detail['duration'])})
-      pipeline_details.update({'coverage': float(coverage)})
+      if detail is not None:
+        coverage = detail['coverage'] if detail['coverage'] is not None else 0
+        pipeline_details.update({'duration':'{}'.format(detail['duration'])})
+        pipeline_details.update({'coverage': float(coverage)})
 
       # Add test report details
-      pipeline_details.update({'total_time': test_report['total_time']})
-      pipeline_details.update({'total_count': test_report['total_count']})
-      pipeline_details.update({'success_count': test_report['success_count']})
-      pipeline_details.update({'failed_count': test_report['failed_count']})
-      pipeline_details.update({'total_time': test_report['total_time']})
-      pipeline_details.update({'skipped_count': test_report['skipped_count']})
-      pipeline_details.update({'error_count': test_report['error_count']})
+      if test_report is not None:
+        pipeline_details.update({'total_time': test_report['total_time']})
+        pipeline_details.update({'total_count': test_report['total_count']})
+        pipeline_details.update({'success_count': test_report['success_count']})
+        pipeline_details.update({'failed_count': test_report['failed_count']})
+        pipeline_details.update({'total_time': test_report['total_time']})
+        pipeline_details.update({'skipped_count': test_report['skipped_count']})
+        pipeline_details.update({'error_count': test_report['error_count']})
+      else:
+        pipeline_details.update({'total_time': 0})
+        pipeline_details.update({'total_count': 0})
+        pipeline_details.update({'success_count': 0})
+        pipeline_details.update({'failed_count': 0})
+        pipeline_details.update({'total_time': 0})
+        pipeline_details.update({'skipped_count': 0})
+        pipeline_details.update({'error_count': 0})
       
       retval.append(pipeline_details)
 
-    retval = retval   
     return retval
 
   ##########################################################
