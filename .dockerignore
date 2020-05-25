@@ -1,0 +1,10 @@
+docs/
+.env.example
+.gitignore
+.dockerignore
+LICENSE
+README.md
+Dockerfile
+
+__pycache__
+__*
