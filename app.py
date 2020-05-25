@@ -55,45 +55,72 @@ pio.templates.default = "plotly_dark"
 gl = GitLab()
 
 group_name = gl.get_group_name(settings.GITLAB_GROUP_ID)
+projects = settings.GITLAB_PROJECT_IDS['projects'] if 'projects' in settings.GITLAB_PROJECT_IDS else None
+if projects is None:
+  raise Exception("No GitLab projects available")
 
 def query_milestone_data():
   return gl.get_milestones(settings.GITLAB_GROUP_ID)
 
 def query_pipeline_data():
   frames = []
-  for project_id in settings.GITLAB_PROJECT_IDS:
-    frames.extend(gl.get_pipelines(project_id))
+  for project in projects:
+    ref_name = project['ref_name'] if 'ref_name' in project else 'master'
+    frames.extend(gl.get_pipelines(project['id'], ref_name))
   return frames
 
 def query_deployment_data():
   frames = []
-  for project_id in settings.GITLAB_PROJECT_IDS:
-    frames.extend(gl.get_deployments(project_id))
+  for project in projects:
+    frames.extend(gl.get_deployments(project['id']))
   return frames
 
 def query_commit_data():
   frames = []
-  for project_id in settings.GITLAB_PROJECT_IDS:
-    frames.extend(gl.get_commits(project_id))
+  for project in projects:
+    ref_name = project['ref_name'] if 'ref_name' in project else 'master'
+    frames.extend(gl.get_commits(project['id'], ref_name))
   return frames
 
 ###############################################
 
+def render_empty_plot_layout(title, height):
+  return go.Figure(layout=go.Layout(
+    title=go.layout.Title(text=title),
+    paper_bgcolor='rgba(0, 0, 0, 0)',
+    plot_bgcolor='rgba(0, 0, 0, 0)',
+    height=height,
+    xaxis_visible=False,
+    yaxis_visible=False,
+    annotations=[
+      dict(
+        xref='paper',
+        yref='paper',
+        text='No matching data found',
+        showarrow=False,
+        font=dict(
+          size=18,
+          color='grey'
+        )
+      )
+    ]
+  ))
+
 def serve_project_layout(project_id):
   content = dbc.Card(dbc.CardBody([
     dbc.Row([          
-      dbc.Col(id='project-{}-badges'.format(project_id), width="auto")
+      dbc.Col(id='project-{}-badges'.format(project_id), width='auto')
     ]),
     
     dbc.Row([
-      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-deployments'.format(project_id)))], type="default"), width=4),
-      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-pipelines'.format(project_id)), className="data-dash-is-loading")], type="default"), width=4),
-      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-commits'.format(project_id)))], type="default"), width=4),
+      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-deployments'.format(project_id), style={ 'height': '400px' }), style={ 'height': '400px' })], type='default'), width=4),
+      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-pipelines'.format(project_id), style={ 'height': '400px' }), style={ 'height': '400px' })], type='default'), width=4),
+      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-commits'.format(project_id), style={ 'height': '400px' }), style={ 'height': '400px' })], type='default'), width=4),
     ]),
 
     dbc.Row([        
-      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-coverage'.format(project_id)), className="data-dash-is-loading")], type="default"), width=6),          
-      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-testreport'.format(project_id)), className="data-dash-is-loading")], type="default"), width=6),
+      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-coverage'.format(project_id), style={ 'height': '500px' }), style={ 'height': '500px' })], type='default'), width=6),          
+      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-testreport'.format(project_id), style={ 'height': '500px' }), style={ 'height': '500px' })], type='default'), width=6),
     ])
   ]))
   return content
@@ -107,7 +134,8 @@ def serve_layout():
   active_tab = None
   tabs = []
   # Serve project layout, but register callbacks later
-  for project_id in settings.GITLAB_PROJECT_IDS:
+  for project in projects:
+    project_id = project['id']
     project_name = gl.get_project_name(project_id)
     tab_name = 'tab-{}'.format(project_id)
 
@@ -136,8 +164,8 @@ def serve_layout():
         html.Div(id='group', children=[
           dbc.Row(dbc.Col(html.Div(html.H3('Group ({})'.format(group_name))), width="auto")),
           dbc.Row([
-              dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='graph_group_velocity'))], type="default"), width=6),
-              dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='graph_group_issues'))], type="default"), width=6),
+              dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='graph_group_velocity'))], type='default'), width=6),
+              dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='graph_group_issues'))], type='default'), width=6),
           ]),
         ]),
 
@@ -163,6 +191,9 @@ app.layout = serve_layout
 
 ###############################################
 # Callbacks
+
+show = { 'display': 'block' }
+hide = { 'display': 'none' }
 
 ## Session updates
 
@@ -198,22 +229,39 @@ def computes_session_update_hourly(n, session_id, data):
 
 ## Group Callbacks
 
+###############################################################
+## Milestones
 def normalize_milestones(data):
   if data is None:
     logging.debug('[ISSUES] No data available, prevent update for now')
     raise PreventUpdate
   elif 'milestones' not in data:
-    logging.debug('[ISSUES] No milestone data available, prevent update for now')
+    logging.warning('[ISSUES] No milestone data available, prevent update for now')
     raise PreventUpdate
-  return json_normalize(data['milestones'])
+  if len(data['milestones']) == 0:
+    logging.warning('[ISSUES] Empty milestone data, prevent update for now')
+    raise PreventUpdate
+  normalized_data = json_normalize(data['milestones'])
+  return normalized_data
+  
+@app.callback(
+  [Output('graph_group_velocity', 'style'),
+  Output('graph_group_issues', 'style')],
+  [Input('session-hourly', 'modified_timestamp')],
+  [State('session-hourly', 'data')])
+def style_milestones(ts, data):
+  if data is None or len(data) == 0 or len(data['milestones']) == 0:
+    logging.info("Don't show milestones plot(s)")
+    return hide, hide
+  return show, show
 
 @app.callback(
   Output('graph_group_velocity', 'figure'),
   [Input('session-hourly', 'modified_timestamp')],
   [State('session-hourly', 'data')])
-def update_velocity_live(ts, data):
+def render_velocity(ts, data):
   milestones = normalize_milestones(data)
-
+  
   velocity_by_milestone = milestones.groupby('milestone.title')[['weight']].sum()
   closed_by_milestone = milestones.query('state=="closed"').groupby('milestone.title')[['weight']].sum()
 
@@ -252,7 +300,7 @@ def update_velocity_live(ts, data):
   Output('graph_group_issues', 'figure'),
   [Input('session-hourly', 'modified_timestamp')],
   [State('session-hourly', 'data')])
-def update_issues_live(ts, data):
+def render_issues(ts, data):
   milestones = normalize_milestones(data)
 
   ts = pd.Timestamp
@@ -320,18 +368,24 @@ def update_issues_live(ts, data):
 ## Project Callbacks
 
 def normalize_project_data(data, data_type, project_id):
-  if data is None:
-    logging.debug('[{}] No data available, prevent update for now'.format(data_type.upper()))
-    raise PreventUpdate
-  elif data_type not in data:
-    logging.debug('[{}] No data available for type ({}), prevent update for now'.format(data_type.upper(), data_type))
-    raise PreventUpdate
+  if data is None or data_type not in data or len(data[data_type]) == 0:
+    return []
+  
   df = json_normalize(data[data_type])
+
+  if 'project_id' not in df:
+    return []
+
   retval = df[df['project_id'] == project_id]
+  if len(retval) == 0:
+    return []
   return retval
 
 def register_project_callbacks(project_id):
   logging.info('Register project ({}) callbacks'.format(project_id))
+
+  ###############################################################
+  ## Deployments
 
   @app.callback(
     Output('project-{}-deployments'.format(project_id), 'figure'),
@@ -340,6 +394,9 @@ def register_project_callbacks(project_id):
   def render_deployments(ts, data):
     deployments = normalize_project_data(data, 'deployments', project_id)
 
+    if len(deployments) == 0:
+      return render_empty_plot_layout("Deployments by date", 400)
+    
     deployments['date'] =  pd.to_datetime(deployments['created_at'])
     deployments['date'] =  pd.to_datetime(deployments['date'], utc=True)
     deployments['deployment_date'] = deployments['date'].dt.date
@@ -379,9 +436,12 @@ def register_project_callbacks(project_id):
         title=go.layout.Title(text="Deployments by date"),
         paper_bgcolor='rgba(0, 0, 0, 0)',
         plot_bgcolor='rgba(0, 0, 0, 0)',
-        yaxis_title = 'Deployments',
+        yaxis_title='Deployments',
         height=400
       ))
+
+  ###############################################################
+  ## Commits
 
   @app.callback(
     Output('project-{}-commits'.format(project_id), 'figure'),
@@ -390,8 +450,11 @@ def register_project_callbacks(project_id):
   def render_commits(ts, data):
     commits = normalize_project_data(data, 'commits', project_id)
 
-    commits['date'] =  pd.to_datetime(commits['created_at'])
-    commits['date'] =  pd.to_datetime(commits['date'], utc=True)
+    if len(commits) == 0:
+      return render_empty_plot_layout("Commits by date", 400)
+
+    commits['date'] = pd.to_datetime(commits['created_at'])
+    commits['date'] = pd.to_datetime(commits['date'], utc=True)
     commits['commit_date'] = commits['date'].dt.date
 
     # Drop unnecessary columns
@@ -418,12 +481,18 @@ def register_project_callbacks(project_id):
         height=400
       ))
 
+  ###############################################################
+  ## Pipelines
+
   @app.callback(
     Output('project-{}-pipelines'.format(project_id), 'figure'),
     [Input('session-short', 'modified_timestamp')],
     [State('session-short', 'data')])
   def render_pipelines(ts, data):
     pipelines = normalize_project_data(data, 'pipelines', project_id)
+
+    if len(pipelines) == 0:
+      return render_empty_plot_layout("Pipeline runs by date", 400)
 
     pipelines['date'] =  pd.to_datetime(pipelines['created_at'])
     pipelines['date'] =  pd.to_datetime(pipelines['date'], utc=True)
@@ -470,10 +539,12 @@ def register_project_callbacks(project_id):
     [Input('session-short', 'modified_timestamp')],
     [State('session-short', 'data')])
   def render_badges(ts, data):
-    pipelines = normalize_project_data(data, 'pipelines', project_id)
-    sort_by_id = pipelines.sort_values('id')
-    
     retval = []
+    pipelines = normalize_project_data(data, 'pipelines', project_id)
+
+    sort_by_id = pipelines
+    if len(pipelines) > 0:
+      sort_by_id = pipelines.sort_values('id')
 
     latest_status = 'unknown'
     latest_url = '#'
@@ -493,9 +564,10 @@ def register_project_callbacks(project_id):
       latest_status = latest_pipeline['status']
       latest_url = latest_pipeline['web_url']
       latest_coverage = float(latest_pipeline['coverage'])
-      latest_tests_total = float(latest_pipeline['total_count'])
       coverage_trend = latest_coverage - float(first_pipeline['coverage'])
-      tests_total_trend = latest_tests_total - float(first_pipeline['total_count'])
+      if 'total_count' in latest_pipeline:
+        latest_tests_total = float(latest_pipeline['total_count'])
+        tests_total_trend = latest_tests_total - float(first_pipeline['total_count'])
       
     if 'success' == latest_status:
       status_color = 'success'
@@ -532,6 +604,9 @@ def register_project_callbacks(project_id):
   def render_coverage(ts, data):
     pipelines = normalize_project_data(data, 'pipelines', project_id)
 
+    if len(pipelines) == 0:
+      return render_empty_plot_layout("Coverage by date", 500)
+
     pipelines['date'] =  pd.to_datetime(pipelines['created_at'])
     pipelines['date'] =  pd.to_datetime(pipelines['date'], utc=True)
     pipelines['pipeline_date'] = pipelines['date'].dt.date
@@ -563,8 +638,11 @@ def register_project_callbacks(project_id):
     Output('project-{}-testreport'.format(project_id), 'figure'),
     [Input('session-short', 'modified_timestamp')],
     [State('session-short', 'data')])
-  def update_testreport_live(ts, data):
+  def render_testreport(ts, data):
     pipelines = normalize_project_data(data, 'pipelines', project_id)
+
+    if len(pipelines) == 0:
+      return render_empty_plot_layout("Tests by date", 500)
 
     pipelines['date'] =  pd.to_datetime(pipelines['created_at'])
     pipelines['date'] =  pd.to_datetime(pipelines['date'], utc=True)
@@ -633,10 +711,10 @@ def register_project_callbacks(project_id):
       ))
 
 # Register project callbacks for layout
-for project_id in settings.GITLAB_PROJECT_IDS:
-  register_project_callbacks(project_id)
+for project in projects:
+  register_project_callbacks(project['id'])
 
 ###############################################
 
 if __name__ == '__main__':
-  app.run_server(debug=settings.DEBUG, host=settings.APP_HOST, port=settings.APP_PORT)
+  app.run_server(debug=bool(settings.DEBUG), host=settings.APP_HOST, port=settings.APP_PORT)

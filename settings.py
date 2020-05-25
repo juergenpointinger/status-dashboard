@@ -1,4 +1,5 @@
 import os
+import json
 from dotenv import load_dotenv
 
 # Load .env file
@@ -30,4 +31,4 @@ GITLAB_TOKEN=os.getenv('GITLAB_TOKEN')
 # GitLab group id
 GITLAB_GROUP_ID=os.getenv('GITLAB_GROUP_ID')
 # GitLab project ids
-GITLAB_PROJECT_IDS=os.getenv('GITLAB_PROJECT_IDS').split(',')
+GITLAB_PROJECT_IDS=json.loads(os.getenv('GITLAB_PROJECT_IDS'))

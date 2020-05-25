@@ -15,7 +15,7 @@ Tested with:
 |:-------------------|:------------|:--------|
 | GITLAB_TOKEN       | GitLab token will be used whenever the API is invoked | |
 | GITLAB_GROUP_ID    | GitLab group id | |
-| GITLAB_PROJECT_IDS | GitLab project id list, separated by ',' | |
+| GITLAB_PROJECT_IDS | GitLab project id list (Json format) | see `.env.example` for details |
 | FLASK_ENV          | Setting FLASK_ENV to `development` will enable debug mode | production |
 | DEBUG              | Debug mode (optional) | false |
 | LOGLEVEL           | Logging level (optional) | INFO |
