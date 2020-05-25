@@ -1,0 +1,64 @@
+body {
+  font-family: sans-serif;
+  background-image: linear-gradient(to right, #1d2338 0%, #1c2236 50%);
+  color: #fff;
+  margin: 10px 0 10px;
+}
+
+#_dash-app-content {
+  margin: 10px 10px 0 10px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: #fff
+}
+
+h1 {
+  font-size: 2rem;
+}
+
+h2 {
+  font-size: 1.75rem;
+}
+
+h3 {
+  font-size: 1.5rem;
+}
+
+h4 {
+  font-size: 1.25rem;
+}
+
+h5 {
+  font-size: 1rem;
+}
+
+.tab-content {
+  padding-top: 15px; 
+}
+
+.card-header-tabs {
+  margin-right: inherit;
+  margin-bottom: inherit;
+  margin-left: inherit;
+}
+
+.card {
+  background-color: transparent;
+}
+
+.nav-tabs .nav-link:focus, .nav-tabs .nav-link:hover {
+  border-color: transparent;
+}
+
+.nav-tabs .nav-item.show .nav-link, .nav-tabs .nav-link.active {
+  color: #ffffff;
+  background-color: #119dff;
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.nav-tabs .nav-link:focus, .nav-tabs .nav-link:hover {
+  background-color: #0f79c3;
+  cursor: pointer;
+}
