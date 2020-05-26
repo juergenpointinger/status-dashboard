@@ -1,11 +1,11 @@
 # Status (GitLab) Dashboard
 
-![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/juergenpointinger/status-dashboard)
-![Docker Image Version (latest semver)](https://img.shields.io/docker/v/juergenpointinger/status-dashboard)
-![Docker Pulls](https://img.shields.io/docker/pulls/juergenpointinger/status-dashboard)
-![Docker Image Size (latest semver)](https://img.shields.io/docker/image-size/juergenpointinger/status-dashboard)
-![GitHub](https://img.shields.io/github/license/juergenpointinger/status-dashboard)
-![Twitter Follow](https://img.shields.io/twitter/follow/pointij?style=social)
+[![Docker Cloud Build Status](https://img.shields.io/docker/cloud/build/juergenpointinger/status-dashboard)](https://hub.docker.com/r/juergenpointinger/status-dashboard)
+[![Docker Image Version (latest semver)](https://img.shields.io/docker/v/juergenpointinger/status-dashboard)](https://hub.docker.com/r/juergenpointinger/status-dashboard)
+[![Docker Pulls](https://img.shields.io/docker/pulls/juergenpointinger/status-dashboard)](https://hub.docker.com/r/juergenpointinger/status-dashboard)
+[![Docker Image Size (latest semver)](https://img.shields.io/docker/image-size/juergenpointinger/status-dashboard)](https://hub.docker.com/r/juergenpointinger/status-dashboard)
+[![GitHub](https://img.shields.io/github/license/juergenpointinger/status-dashboard)](https://github.com/juergenpointinger/status-dashboard/blob/master/LICENSE)
+[![Twitter Follow](https://img.shields.io/twitter/follow/pointij?style=social)](https://twitter.com/pointij)
 
 The dashboard is intended to simplify the presentation of the evolution of products and projects for different stakeholders. 
 
