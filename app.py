@@ -412,12 +412,12 @@ def register_project_callbacks(project_id):
     deployments = deployments[['id', 'deployment_date', 'status', 'environment.name']]
 
     # Show only successful deployments
-    staging_deployments = deployments.query('status=="success" and `environment.name`=="staging"')
+    staging_deployments = deployments.query('`environment.name`=="staging"')
     staging_deployments_by_day = staging_deployments.groupby('deployment_date')[['id']].count()
     staging_deployments_by_day = staging_deployments_by_day.rename(columns = {'id': 'deployment_count'})
 
-    production_deployments = deployments.query('status=="success" and `environment.name`=="production"')
-    production_deployments_by_day = production_deployments.query('status=="success" and `environment.name`=="production"').groupby('deployment_date')[['id']].count()
+    production_deployments = deployments.query('`environment.name`=="production"')
+    production_deployments_by_day = production_deployments.groupby('deployment_date')[['id']].count()
     production_deployments_by_day = production_deployments_by_day.rename(columns = {'id': 'deployment_count'})
 
     fig = go.Figure(

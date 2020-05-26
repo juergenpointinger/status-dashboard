@@ -167,6 +167,6 @@ class GitLab():
   ##########################################################
 
   def get_deployments(self, project_id):
-    deployments = self.get_all_pages('/projects/{}/deployments?&updated_after={}'.format(project_id, self.timespan()))
+    deployments = self.get_all_pages('/projects/{}/deployments?&updated_after={}&status=success'.format(project_id, self.timespan()))
     retval = [dict(deployment, **{'project_id': project_id}) for deployment in deployments]
     return retval
