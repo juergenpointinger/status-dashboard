@@ -95,7 +95,7 @@ class GitLab():
 
   def no_upcoming_milestones_predicate(self, milestone):
     today = datetime.now().strftime("%Y-%m-%d")
-    return (milestone['due_date'] >= today and milestone['start_date'] < today) or milestone['state'] == 'closed'
+    return (milestone['due_date'] >= today and milestone['start_date'] <= today) or milestone['state'] == 'closed'
     
   def sort_by_milestone_title(self, milestone):
     return milestone['title']

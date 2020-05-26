@@ -251,7 +251,7 @@ def normalize_milestones(data):
   [State('session-hourly', 'data')])
 def style_milestones(ts, data):
   if data is None or len(data) == 0 or len(data['milestones']) == 0:
-    logging.info("Don't show milestones plot(s)")
+    logging.debug("Don't show milestones plot(s)")
     return hide, hide
   return show, show
 
@@ -494,8 +494,8 @@ def register_project_callbacks(project_id):
     if len(pipelines) == 0:
       return render_empty_plot_layout("Pipeline runs by date", 400)
 
-    pipelines['date'] =  pd.to_datetime(pipelines['created_at'])
-    pipelines['date'] =  pd.to_datetime(pipelines['date'], utc=True)
+    pipelines['date'] = pd.to_datetime(pipelines['created_at'])
+    pipelines['date'] = pd.to_datetime(pipelines['date'], utc=True)
     pipelines['pipeline_date'] = pipelines['date'].dt.date
 
     # Drop unnecessary columns
