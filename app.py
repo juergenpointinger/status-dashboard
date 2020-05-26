@@ -113,7 +113,13 @@ def serve_project_layout(project_id):
     ]),
     
     dbc.Row([
-      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-deployments'.format(project_id), style={ 'height': '400px' }), style={ 'height': '400px' })], type='default'), width=4),
+      dbc.Col(dcc.Loading(children=[
+          html.Div(dcc.Graph(id='project-{}-deployments'.format(project_id), style={ 'height': '400px' }), style={ 'height': '400px' }),
+          html.Div(id='project-{}-deployments-details'.format(project_id))
+        ],
+        type='default'),
+        width=4
+      ),
       dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-pipelines'.format(project_id), style={ 'height': '400px' }), style={ 'height': '400px' })], type='default'), width=4),
       dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-commits'.format(project_id), style={ 'height': '400px' }), style={ 'height': '400px' })], type='default'), width=4),
     ]),
@@ -388,14 +394,15 @@ def register_project_callbacks(project_id):
   ## Deployments
 
   @app.callback(
-    Output('project-{}-deployments'.format(project_id), 'figure'),
+    [Output('project-{}-deployments'.format(project_id), 'figure'),
+    Output('project-{}-deployments-details'.format(project_id), 'children')],
     [Input('session-hourly', 'modified_timestamp')],
     [State('session-hourly', 'data')])
   def render_deployments(ts, data):
     deployments = normalize_project_data(data, 'deployments', project_id)
 
     if len(deployments) == 0:
-      return render_empty_plot_layout("Deployments by date", 400)
+      return render_empty_plot_layout("Deployments by date", 400), []
     
     deployments['date'] =  pd.to_datetime(deployments['created_at'])
     deployments['date'] =  pd.to_datetime(deployments['date'], utc=True)
@@ -405,13 +412,15 @@ def register_project_callbacks(project_id):
     deployments = deployments[['id', 'deployment_date', 'status', 'environment.name']]
 
     # Show only successful deployments
-    staging_deployments_by_day = deployments.query('status=="success" and `environment.name`=="staging"').groupby('deployment_date')[['id']].count()
+    staging_deployments = deployments.query('status=="success" and `environment.name`=="staging"')
+    staging_deployments_by_day = staging_deployments.groupby('deployment_date')[['id']].count()
     staging_deployments_by_day = staging_deployments_by_day.rename(columns = {'id': 'deployment_count'})
 
-    production_deployments_by_day = deployments.query('status=="success" and `environment.name`=="production"').groupby('deployment_date')[['id']].count()
+    production_deployments = deployments.query('status=="success" and `environment.name`=="production"')
+    production_deployments_by_day = production_deployments.query('status=="success" and `environment.name`=="production"').groupby('deployment_date')[['id']].count()
     production_deployments_by_day = production_deployments_by_day.rename(columns = {'id': 'deployment_count'})
 
-    return go.Figure(
+    fig = go.Figure(
       data=[
         go.Scatter(
           name='Staging',
@@ -439,6 +448,17 @@ def register_project_callbacks(project_id):
         yaxis_title='Deployments',
         height=400
       ))
+    
+    details = html.Span([
+      dbc.Button(
+        ["Staging", dbc.Badge(len(staging_deployments), color="light", className="ml-1")],
+        outline=True, color="info", size="sm", className="mr-1"
+      ),
+      dbc.Button(
+        ["Production", dbc.Badge(len(production_deployments), color="light", className="ml-1")],
+        outline=True, color="info", size="sm", className="mr-1"
+      )])
+    return fig, details
 
   ###############################################################
   ## Commits
