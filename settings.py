@@ -6,11 +6,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Debug mode
-DEBUG=os.getenv('DEBUG', 0)
+DEBUG=True if int(os.getenv('DEBUG', 0)) == 1 else False
 # Logging level
 LOGLEVEL=os.getenv('LOGLEVEL', 'INFO')
 # Logging format
-LOGFORMAT=os.getenv('LOGFORMAT', '%(asctime)s - %(levelname)s - %(message)s')
+LOGFORMAT=os.getenv('LOGFORMAT', '[%(asctime)-s] %(levelname)s in %(module)s: %(message)s')
 
 # Dash application name
 APP_NAME=os.getenv('APP_NAME', 'Status Dashboard')
