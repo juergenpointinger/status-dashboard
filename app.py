@@ -737,4 +737,4 @@ for project in projects:
 ###############################################
 
 if __name__ == '__main__':
-  app.run_server(debug=bool(settings.DEBUG), host=settings.APP_HOST, port=settings.APP_PORT)
+  app.run_server(debug=settings.DEBUG, host=settings.APP_HOST, port=settings.APP_PORT)
