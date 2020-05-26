@@ -8,6 +8,9 @@ Tested with:
 
 - Python 3.7.3
 - Dash 1.12.0
+- GitLab 13+
+
+![Status-Dashboard](./docs/status-dashboard.png)
 
 ## Environment
 
@@ -32,7 +35,13 @@ Rename your `.env.example` to `.env` and add the required changes.
 $ pip install -r requirements.txt
 ```
 
-## Run via docker
+## Run via Docker
+
+```bash
+$ docker run --rm --env-file .env --name status-dashboard -p 8080:8080 juergenpointinger/status-dashboard:latest
+```
+
+## Build via Docker
 
 ```bash
 $ docker build . -t juergenpointinger/status-dashboard:latest
