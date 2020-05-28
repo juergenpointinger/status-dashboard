@@ -11,6 +11,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
 
+from flask_caching import Cache
 from datetime import datetime
 import json
 import logging
@@ -45,7 +46,16 @@ app = dash.Dash(
     settings.FONTAWESOME])
 app.config['suppress_callback_exceptions'] = True
 app.title = settings.APP_NAME
-server = app.server
+cache = Cache(app.server, config={
+    # Note that filesystem cache doesn't work on systems with ephemeral
+    # filesystems like Heroku.
+    'CACHE_TYPE': 'filesystem',
+    'CACHE_DIR': 'cache-directory',
+
+    # should be equal to maximum number of users on the app at a single time
+    # higher numbers will store more data in the filesystem / redis cache
+    'CACHE_THRESHOLD': 200
+})
 
 pio.templates.default = "plotly_dark"
 
@@ -60,9 +70,11 @@ if projects is None:
   raise Exception("No GitLab projects available")
 
 def query_milestone_data():
+  logger.info('Query milestone data')
   return gl.get_milestones(settings.GITLAB_GROUP_ID)
 
 def query_pipeline_data():
+  logger.info('Query pipeline data')
   frames = []
   for project in projects:
     ref_name = project['ref_name'] if 'ref_name' in project else 'master'
@@ -70,12 +82,14 @@ def query_pipeline_data():
   return frames
 
 def query_deployment_data():
+  logger.info('Query deployment data')
   frames = []
   for project in projects:
     frames.extend(gl.get_deployments(project['id']))
   return frames
 
 def query_commit_data():
+  logger.info('Query commit data')
   frames = []
   for project in projects:
     ref_name = project['ref_name'] if 'ref_name' in project else 'master'
@@ -114,19 +128,49 @@ def serve_project_layout(project_id):
     
     dbc.Row([
       dbc.Col(dcc.Loading(children=[
-          html.Div(dcc.Graph(id='project-{}-deployments'.format(project_id), style={ 'height': '400px' }), style={ 'height': '400px' }),
+        html.Div(dcc.Graph(
+          id='project-{}-deployments'.format(project_id),
+          figure=render_empty_plot_layout("Deployments by date", 400),
+          style={ 'height': '400px' }), style={ 'height': '400px' }),
           html.Div(id='project-{}-deployments-details'.format(project_id))
-        ],
-        type='default'),
+        ], type='default'),
         width=4
       ),
-      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-pipelines'.format(project_id), style={ 'height': '400px' }), style={ 'height': '400px' })], type='default'), width=4),
-      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-commits'.format(project_id), style={ 'height': '400px' }), style={ 'height': '400px' })], type='default'), width=4),
+      dbc.Col(dcc.Loading(children=[
+        html.Div(dcc.Graph(
+          id='project-{}-pipelines'.format(project_id),
+          figure=render_empty_plot_layout("Pipelines runs by date", 400), 
+          style={ 'height': '400px' }), style={ 'height': '400px' })
+        ], type='default'),
+        width=4
+      ),
+      dbc.Col(dcc.Loading(children=[
+        html.Div(dcc.Graph(
+          id='project-{}-commits'.format(project_id),
+          figure=render_empty_plot_layout("Commits by date", 400),
+          style={ 'height': '400px' }), style={ 'height': '400px' })
+        ], type='default'),
+        width=4
+      ),
     ]),
 
     dbc.Row([        
-      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-coverage'.format(project_id), style={ 'height': '500px' }), style={ 'height': '500px' })], type='default'), width=6),          
-      dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='project-{}-testreport'.format(project_id), style={ 'height': '500px' }), style={ 'height': '500px' })], type='default'), width=6),
+      dbc.Col(dcc.Loading(children=[
+        html.Div(dcc.Graph(
+          id='project-{}-coverage'.format(project_id),
+          figure=render_empty_plot_layout("Coverage by date", 500), 
+          style={ 'height': '500px' }), style={ 'height': '500px' })
+        ], type='default'),
+        width=6
+      ),          
+      dbc.Col(dcc.Loading(children=[
+        html.Div(dcc.Graph(
+          id='project-{}-testreport'.format(project_id),
+          figure=render_empty_plot_layout("Tests by date", 500),
+          style={ 'height': '500px' }), style={ 'height': '500px' })
+        ], type='default'),
+        width=6
+      ),
     ])
   ]))
   return content
@@ -151,46 +195,55 @@ def serve_layout():
     if active_tab is None:
       active_tab = tab_name
 
-  return html.Div(
-    [
-      # Session specific content:
-      # Same as the local store but will lose the data
-      # when the browser/tab closes.
-      html.Div(session_id, id='session-id', style={'display': 'none'}),
-      dcc.Store(id='session-short', storage_type='session'),
-      dcc.Store(id='session-hourly', storage_type='session'),
-      dcc.Store(id='session-daily', storage_type='session'),
+  return html.Div([
+    # Session specific content:
+    # Same as the local store but will lose the data
+    # when the browser/tab closes.
+    html.Div(session_id, id='session-id', style={'display': 'none'}),
+    # hidden signal value
+    html.Div(id='session-short', style={'display': 'none'}),
+    html.Div(id='session-hourly', style={'display': 'none'}),
+    html.Div(id='session-daily', style={'display': 'none'}),
 
-      # Page
-      html.Div(id='page', children=[
-        # Header
-        dbc.Row(dbc.Col(html.Div(html.H2(settings.APP_NAME)), width="auto")),
-        
-        # Group
-        html.Div(id='group', children=[
-          dbc.Row(dbc.Col(html.Div(html.H3('Group ({})'.format(group_name))), width="auto")),
-          dbc.Row([
-              dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='graph_group_velocity'))], type='default'), width=6),
-              dbc.Col(dcc.Loading(children=[html.Div(dcc.Graph(id='graph_group_issues'))], type='default'), width=6),
-          ]),
+    # Page
+    html.Div(id='page', children=[
+      # Header
+      dbc.Row(dbc.Col(html.Div(html.H2(settings.APP_NAME)), width="auto")),
+      
+      # Group
+      html.Div(id='group', children=[
+        dbc.Row(dbc.Col(html.Div(html.H3('Group ({})'.format(group_name))), width="auto")),
+        dbc.Row([
+            dbc.Col(dcc.Loading(children=[
+              html.Div(dcc.Graph(
+                id='graph_group_velocity',
+                figure=render_empty_plot_layout("Velocity", 450)))    
+              ], type='default'),
+              width=6
+            ),
+            dbc.Col(dcc.Loading(children=[
+              html.Div(dcc.Graph(
+                id='graph_group_issues',
+                figure=render_empty_plot_layout("Issues", 450)))
+              ], type='default'),
+              width=6
+            ),
         ]),
-
-        # Projects
-        html.Div(id='project', children=[
-          dbc.Tabs(id='project-tabs', card=True, active_tab=active_tab, children=tabs),
-          dbc.CardBody(dcc.Loading(children=[html.P(id="project-card-content")], type="circle")),
-        ]),
-
       ]),
 
-      # Hidden signal
-      html.Div(id='pipeline-signal', style={'display': 'none'}),
-      # Interval
-      dcc.Interval(id='session-update-daily', interval=1*86400000, n_intervals=0),
-      dcc.Interval(id='session-update-hourly', interval=1*3600000, n_intervals=0),
-      dcc.Interval(id='session-update-short', interval=1*300000, n_intervals=0), # 5 minutes
-    ]
-  )
+      # Projects
+      html.Div(id='project', children=[
+        dbc.Tabs(id='project-tabs', card=True, active_tab=active_tab, children=tabs),
+        dbc.CardBody(dcc.Loading(children=[html.P(id="project-card-content")], type="circle")),
+      ]),
+
+    ]),
+
+    # Interval
+    dcc.Interval(id='session-update-daily', interval=1*86400000, n_intervals=0),
+    dcc.Interval(id='session-update-hourly', interval=1*3600000, n_intervals=0),
+    dcc.Interval(id='session-update-short', interval=1*600000, n_intervals=0), # 10 minutes
+  ])
 
 # App Layout
 app.layout = serve_layout
@@ -203,41 +256,51 @@ hide = { 'display': 'none' }
 
 ## Session updates
 
-@app.callback(
-  Output('session-short', 'data'),
-  [Input('session-update-short', 'n_intervals'),
-   Input('session-id', 'children')],
-  [State('session-short', 'data')])
-def computes_session_update_short(n, session_id, data):
+@cache.cached(key_prefix='session_short')
+def computes_session_short():
   logging.info('Compute short interval data')
 
-  data = data or {}
+  data = {}
   data.update({'pipelines': query_pipeline_data()})
-
-  logging.info('Signal computed short interval data')
-  return data
-
-@app.callback(
-  Output('session-hourly', 'data'),
-  [Input('session-update-hourly', 'n_intervals'),
-   Input('session-id', 'children')],
-  [State('session-hourly', 'data')])
-def computes_session_update_hourly(n, session_id, data):
-  logging.info('Compute hourly interval data')
-
-  data = data or {}
-  data.update({'milestones': query_milestone_data()})
   data.update({'commits': query_commit_data()})
   data.update({'deployments': query_deployment_data()})
 
-  logging.info('Signal computed hourly interval data')
+  logging.info('Computed short interval data > Signal')
   return data
+
+@app.callback(
+  Output('session-short', 'children'),
+  [Input('session-update-short', 'n_intervals')])
+def signal_session_short(n):
+  logging.info('Signal short interval data ({})'.format(str(n)))
+  computes_session_short()
+  return n  
+
+@cache.cached(key_prefix='session_hourly')
+def computes_session_hourly():
+  logging.info('Compute hourly interval data')
+
+  data = {}
+  data.update({'milestones': query_milestone_data()})  
+
+  logging.info('Computed hourly interval data  > Signal')
+  return data
+
+@app.callback(
+  Output('session-hourly', 'children'),
+  [Input('session-update-hourly', 'n_intervals')])
+def signal_session_hourly(n):
+  logging.info('Signal hourly interval data ({})'.format(str(n)))
+  computes_session_hourly()
+  return n
 
 ## Group Callbacks
 
 ###############################################################
 ## Milestones
-def normalize_milestones(data):
+def normalize_session_hourly_data():
+  logging.debug('Normalize hourly data')
+  data = computes_session_hourly()
   if data is None:
     logging.debug('[ISSUES] No data available, prevent update for now')
     raise PreventUpdate
@@ -249,24 +312,12 @@ def normalize_milestones(data):
     raise PreventUpdate
   normalized_data = json_normalize(data['milestones'])
   return normalized_data
-  
-@app.callback(
-  [Output('graph_group_velocity', 'style'),
-  Output('graph_group_issues', 'style')],
-  [Input('session-hourly', 'modified_timestamp')],
-  [State('session-hourly', 'data')])
-def style_milestones(ts, data):
-  if data is None or len(data) == 0 or len(data['milestones']) == 0:
-    logging.debug("Don't show milestones plot(s)")
-    return hide, hide
-  return show, show
 
 @app.callback(
   Output('graph_group_velocity', 'figure'),
-  [Input('session-hourly', 'modified_timestamp')],
-  [State('session-hourly', 'data')])
-def render_velocity(ts, data):
-  milestones = normalize_milestones(data)
+  [Input('session-hourly', 'children')])
+def render_velocity(signal):
+  milestones = normalize_session_hourly_data()
   
   velocity_by_milestone = milestones.groupby('milestone.title')[['weight']].sum()
   closed_by_milestone = milestones.query('state=="closed"').groupby('milestone.title')[['weight']].sum()
@@ -304,10 +355,9 @@ def render_velocity(ts, data):
 
 @app.callback(
   Output('graph_group_issues', 'figure'),
-  [Input('session-hourly', 'modified_timestamp')],
-  [State('session-hourly', 'data')])
-def render_issues(ts, data):
-  milestones = normalize_milestones(data)
+  [Input('session-hourly', 'children')])
+def render_issues(signal):
+  milestones = normalize_session_hourly_data()
 
   ts = pd.Timestamp
   milestones['issue_created'] = pd.to_datetime(milestones['created_at'])
@@ -373,7 +423,9 @@ def render_issues(ts, data):
 
 ## Project Callbacks
 
-def normalize_project_data(data, data_type, project_id):
+def normalize_session_short_data(data_type, project_id):
+  logging.debug('Normalize short data: ' + data_type)
+  data = computes_session_short()
   if data is None or data_type not in data or len(data[data_type]) == 0:
     return []
   
@@ -395,11 +447,10 @@ def register_project_callbacks(project_id):
 
   @app.callback(
     [Output('project-{}-deployments'.format(project_id), 'figure'),
-    Output('project-{}-deployments-details'.format(project_id), 'children')],
-    [Input('session-hourly', 'modified_timestamp')],
-    [State('session-hourly', 'data')])
-  def render_deployments(ts, data):
-    deployments = normalize_project_data(data, 'deployments', project_id)
+     Output('project-{}-deployments-details'.format(project_id), 'children')],
+    [Input('session-short', 'children')])
+  def render_deployments(signal):
+    deployments = normalize_session_short_data('deployments', project_id)
 
     if len(deployments) == 0:
       return render_empty_plot_layout("Deployments by date", 400), []
@@ -465,10 +516,9 @@ def register_project_callbacks(project_id):
 
   @app.callback(
     Output('project-{}-commits'.format(project_id), 'figure'),
-    [Input('session-hourly', 'modified_timestamp')],
-    [State('session-hourly', 'data')])
-  def render_commits(ts, data):
-    commits = normalize_project_data(data, 'commits', project_id)
+    [Input('session-short', 'children')])
+  def render_commits(signal):
+    commits = normalize_session_short_data('commits', project_id)
 
     if len(commits) == 0:
       return render_empty_plot_layout("Commits by date", 400)
@@ -506,10 +556,9 @@ def register_project_callbacks(project_id):
 
   @app.callback(
     Output('project-{}-pipelines'.format(project_id), 'figure'),
-    [Input('session-short', 'modified_timestamp')],
-    [State('session-short', 'data')])
-  def render_pipelines(ts, data):
-    pipelines = normalize_project_data(data, 'pipelines', project_id)
+    [Input('session-short', 'children')])
+  def render_pipelines(signal):
+    pipelines = normalize_session_short_data('pipelines', project_id)
 
     if len(pipelines) == 0:
       return render_empty_plot_layout("Pipeline runs by date", 400)
@@ -556,11 +605,10 @@ def register_project_callbacks(project_id):
 
   @app.callback(
     Output('project-{}-badges'.format(project_id), 'children'),
-    [Input('session-short', 'modified_timestamp')],
-    [State('session-short', 'data')])
-  def render_badges(ts, data):
+    [Input('session-short', 'children')])
+  def render_badges(signal):
     retval = []
-    pipelines = normalize_project_data(data, 'pipelines', project_id)
+    pipelines = normalize_session_short_data('pipelines', project_id)
 
     sort_by_id = pipelines
     if len(pipelines) > 0:
@@ -619,10 +667,9 @@ def register_project_callbacks(project_id):
 
   @app.callback(
     Output('project-{}-coverage'.format(project_id), 'figure'),
-    [Input('session-short', 'modified_timestamp')],
-    [State('session-short', 'data')])
-  def render_coverage(ts, data):
-    pipelines = normalize_project_data(data, 'pipelines', project_id)
+    [Input('session-short', 'children')])
+  def render_coverage(signal):
+    pipelines = normalize_session_short_data('pipelines', project_id)
 
     if len(pipelines) == 0:
       return render_empty_plot_layout("Coverage by date", 500)
@@ -656,10 +703,9 @@ def register_project_callbacks(project_id):
 
   @app.callback(
     Output('project-{}-testreport'.format(project_id), 'figure'),
-    [Input('session-short', 'modified_timestamp')],
-    [State('session-short', 'data')])
-  def render_testreport(ts, data):
-    pipelines = normalize_project_data(data, 'pipelines', project_id)
+    [Input('session-short', 'children')])
+  def render_testreport(signal):
+    pipelines = normalize_session_short_data('pipelines', project_id)
 
     if len(pipelines) == 0:
       return render_empty_plot_layout("Tests by date", 500)
