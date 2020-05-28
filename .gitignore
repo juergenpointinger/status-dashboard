@@ -1,3 +1,5 @@
+cache-directory
+.env
+
 __pycache__
 __*
-.env
