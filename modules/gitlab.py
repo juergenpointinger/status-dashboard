@@ -129,6 +129,13 @@ class GitLab():
       retval = response.json()
     return retval
 
+  def get_inactive_jobs(self, project_id, pipeline_id):
+    retval = []
+    response = self.get_request('/projects/{}/pipelines/{}/jobs?scope[]=failed&scope[]=canceled'.format(project_id, pipeline_id))
+    if response.status_code == 200:
+      retval = response.json()
+    return retval
+
   def get_test_report(self, project_id, pipeline_id):    
     retval = []
     response = self.get_request('/projects/{}/pipelines/{}/test_report'.format(project_id, pipeline_id))

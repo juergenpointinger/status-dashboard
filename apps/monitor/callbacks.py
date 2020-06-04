@@ -35,6 +35,9 @@ def __get_pipeline_data(project_id, ref_name):
 def __get_active_jobs_data(project_id, pipeline_id):
   return gl.get_active_jobs(project_id, pipeline_id)
 
+def __get_inactive_jobs_data(project_id, pipeline_id):
+  return gl.get_inactive_jobs(project_id, pipeline_id)
+
 def __get_test_report_data(project_id, pipeline_id):
   return gl.get_test_report(project_id, pipeline_id)
 
@@ -68,24 +71,40 @@ def __register_project_callbacks(project_id, ref_name):
     elif 'failed' == status:
       color = 'danger'
 
-    if 'failed' == status:
-      test_report = __get_test_report_data(project_id, pipeline_id)
-    
-    joint_active_jobs = ''
-    if 'running' == status or 'failed' == status or 'manual' == status:
+    joint_jobs = ''
+    if 'failed' == status or 'canceled' == status:
+      inactive_jobs = __get_inactive_jobs_data(project_id, pipeline_id)      
+      for job in inactive_jobs:
+        job_name = job['name']
+        if joint_jobs == '':
+          joint_jobs = job_name
+        else:
+          joint_jobs = joint_jobs + ', ' + job_name
+    elif 'running' == status or 'manual' == status:
       active_jobs = __get_active_jobs_data(project_id, pipeline_id)      
       for job in active_jobs:
         job_name = job['name']
-        if joint_active_jobs == '':
-          joint_active_jobs = job_name
+        if joint_jobs == '':
+          joint_jobs = job_name
         else:
-          joint_active_jobs = joint_active_jobs + ', ' + job_name
+          joint_jobs = joint_jobs + ', ' + job_name
+
+    test_details = ''
+    if 'failed' == status:
+      test_report = __get_test_report_data(project_id, pipeline_id)
+      if 'total_count' in test_report and test_report['total_count'] > 0:
+        test_details = 'Total ({}): Success ({}), Skipped ({}), Failed ({})'.format(
+          test_report['total_count'],
+          test_report['success_count'],
+          test_report['skipped_count'],
+          test_report['failed_count'])
 
     return [dbc.CardHeader(name),
             dbc.CardBody([
               html.H2(status.upper(), className="mb-2", style={'text-align': 'center'}),
               html.Div(str(timedelta(seconds=duration)), className="mb-2", style={'text-align': 'center'}),
-              html.Div(joint_active_jobs, className="mb-2", style={'text-align': 'center'}),
+              html.Div(joint_jobs, className="mb-2", style={'text-align': 'center'}),
+              html.Div(test_details, className="mb-2", style={'text-align': 'center'}),
               html.Span([
                 dbc.Button(
                   "Coverage: {:.2f} %".format(coverage),
