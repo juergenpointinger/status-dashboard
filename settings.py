@@ -21,9 +21,6 @@ APP_ROOT=os.getcwd()
 # Dash server port
 APP_PORT=os.getenv('APP_PORT')
 
-# External css
-FONTAWESOME='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css'
-
 # GitLab URL
 GITLAB_API_URL=os.getenv('GITLAB_API_URL', 'https://gitlab.com/api/v4')
 # GitLab token will be used whenever the API is invoked
