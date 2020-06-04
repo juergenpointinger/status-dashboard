@@ -1,0 +1,12 @@
+version: '3.4'
+
+services:
+
+  # Status Dashboard Service
+  status-dashboard:
+    image: juergenpointinger/status-dashboard
+    env_file:
+      - .env
+    restart: unless-stopped
+    ports:
+      - 5000:5000

@@ -15,11 +15,11 @@ LOGFORMAT=os.getenv('LOGFORMAT', '[%(asctime)-s] %(levelname)s in %(module)s: %(
 # Dash application name
 APP_NAME=os.getenv('APP_NAME', 'Status Dashboard')
 # Dash host ip adress
-APP_HOST=os.getenv('APP_HOST', '127.0.0.1')
+APP_HOST=os.getenv('APP_HOST', '0.0.0.0')
 # Dash application folder
 APP_ROOT=os.getcwd()
 # Dash server port
-APP_PORT=os.getenv('APP_PORT')
+APP_PORT=os.getenv('APP_PORT', 5000)
 
 # GitLab URL
 GITLAB_API_URL=os.getenv('GITLAB_API_URL', 'https://gitlab.com/api/v4')

@@ -3,7 +3,7 @@
     // Hover to view descriptions of existing attributes.
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
-    "configurations": [        
+    "configurations": [
         {
             "name": "Python: Dash",
             "type": "python",
@@ -11,7 +11,7 @@
             "program": "index.py",
             "env": {
                 "FLASK_ENV": "development",
-                "FLASK_DEBUG": "0"
+                "DEBUG": "1"
             },
             "args": [
                 "run",
@@ -19,6 +19,13 @@
                 "--no-reload"
             ],
             "jinja": true
+        },
+        {
+            "name": "Docker: Attach Dash",
+            "type": "python",
+            "request": "attach",
+            "host": "127.0.0.1",
+            "port": 5678
         }
     ]
 }
