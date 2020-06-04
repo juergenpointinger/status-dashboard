@@ -1,7 +1,10 @@
-import requests
+# Standard library imports
 from datetime import datetime, timedelta
-import settings
 import logging
+
+# Third party imports
+import requests
+import settings
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +122,51 @@ class GitLab():
 
   ##########################################################
 
+  def get_active_jobs(self, project_id, pipeline_id):
+    retval = []
+    response = self.get_request('/projects/{}/pipelines/{}/jobs?scope[]=pending&scope[]=running&scope[]=manual'.format(project_id, pipeline_id))
+    if response.status_code == 200:
+      retval = response.json()
+    return retval
+
+  def get_test_report(self, project_id, pipeline_id):    
+    retval = []
+    response = self.get_request('/projects/{}/pipelines/{}/test_report'.format(project_id, pipeline_id))
+    if response.status_code == 200:
+      retval = response.json()
+    return retval
+
+  def get_latest_pipeline(self, project_id, ref_name):
+    retval = None
+    response = self.get_request('/projects/{}/pipelines?ref={}&per_page=1&page=1'.format(project_id, ref_name))
+    
+    if response.status_code != 200:
+      return retval
+    
+    pipelines = response.json()
+
+    if len(pipelines) == 1:
+      pipeline = pipelines[0].copy()     
+
+      # Add project id/name
+      pipeline.update({'project_id': project_id})
+      pipeline.update({'project_name': self.get_project_name(project_id)})
+
+      # Add details
+      response = self.get_request('/projects/{}/pipelines/{}'.format(project_id, pipeline['id']))
+      detail = response.json() if response.status_code == 200 else None      
+      if detail is not None:
+        coverage = detail['coverage'] if detail['coverage'] is not None else 0
+        duration = detail['duration'] if detail['duration'] is not None else 0
+        pipeline.update({'duration': int(duration)})
+        pipeline.update({'coverage': float(coverage)})
+      else:
+        pipeline.update({'duration': 0})
+        pipeline.update({'coverage': 0.0})
+
+      retval = pipeline
+    return retval
+
   def get_pipelines(self, project_id, ref_name):
     pipelines = self.get_all_pages('/projects/{}/pipelines?ref={}&scope=finished&updated_after={}'.format(project_id, ref_name, self.timespan()))
     
@@ -133,14 +181,19 @@ class GitLab():
       response = self.get_request('/projects/{}/pipelines/{}/test_report'.format(project_id, pipeline_id))
       test_report = response.json() if response.status_code == 200 else None
 
-      # Add project id
+      # Add project id/name
       pipeline_details.update({'project_id': project_id})
+      pipeline_details.update({'project_name': self.get_project_name(project_id)})
 
       # Add coverage details
       if detail is not None:
         coverage = detail['coverage'] if detail['coverage'] is not None else 0
-        pipeline_details.update({'duration':'{}'.format(detail['duration'])})
+        duration = detail['duration'] if detail['duration'] is not None else 0
+        pipeline.update({'duration': int(duration)})
         pipeline_details.update({'coverage': float(coverage)})
+      else:
+        pipeline_details.update({'duration': 0})
+        pipeline_details.update({'coverage': 0.0})
 
       # Add test report details
       if test_report is not None:

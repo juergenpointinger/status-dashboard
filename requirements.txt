@@ -8,11 +8,11 @@ dash-core-components==1.10.0
 dash-html-components==1.0.3
 dash-renderer==1.4.1
 dash-table==4.7.0
-DateTime==4.3
 Flask==1.1.2
 Flask-Caching==1.8.0
 Flask-Compress==1.5.0
 future==0.18.2
+gunicorn==20.0.4
 idna==2.9
 itsdangerous==1.1.0
 Jinja2==2.11.2
