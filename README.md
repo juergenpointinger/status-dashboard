@@ -17,7 +17,12 @@ Tested with:
 - Dash 1.12.0
 - GitLab 13+
 
-![Status-Dashboard](./docs/status-dashboard.png)
+## Routes
+
+| Route               | Description      | Image                                  |
+|:--------------------|:-----------------|:---------------------------------------|
+| `/` or `/dashboard` | Status Dashboard | [Preview](./docs/status-dashboard.png) |
+| `/monitor`          | Build Monitor    | [Preview](./docs/build-monitor.png)    |
 
 ## Environment
 
@@ -30,9 +35,9 @@ Tested with:
 | DEBUG              | Debug mode (optional) | false |
 | LOGLEVEL           | Logging level (optional) | INFO |
 | LOGFORMAT          | Logging format output (optional) | %(asctime)s - %(levelname)s - %(message)s |
-| APP_NAME           | Dashboard application name (optional) | GitLab Dashboard |
+| APP_NAME           | Dashboard application name (optional) | Status Dashboard |
 | APP_HOST           | Dashboard host ip adress (optional) | 0.0.0.0 (for Docker environment) |
-| APP_PORT           | Dashboard port (optional) | 8080 |
+| APP_PORT           | Dashboard port (optional) | 5000 |
 
 Rename your `.env.example` to `.env` and add the required changes.
 
@@ -45,12 +50,12 @@ $ pip install -r requirements.txt
 ## Run via Docker
 
 ```bash
-$ docker run --rm --env-file .env --name status-dashboard -p 8080:8080 juergenpointinger/status-dashboard:latest
+$ docker run --rm --env-file .env --name status-dashboard -p 5000:5000 juergenpointinger/status-dashboard:latest
 ```
 
 ## Build via Docker
 
 ```bash
 $ docker build . -t juergenpointinger/status-dashboard:latest
-$ docker run --rm --name status-dashboard -p 8080:8080 juergenpointinger/status-dashboard:latest
+$ docker run --rm --name status-dashboard -p 5000:5000 juergenpointinger/status-dashboard:latest
 ```
