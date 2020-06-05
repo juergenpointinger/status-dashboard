@@ -38,6 +38,7 @@ Tested with:
 | APP_NAME           | Dashboard application name (optional) | Status Dashboard |
 | APP_HOST           | Dashboard host ip adress (optional) | 0.0.0.0 (for Docker environment) |
 | APP_PORT           | Dashboard port (optional) | 5000 |
+| REDIS_URL          | Redis url | redis://localhost:6379 |
 
 Rename your `.env.example` to `.env` and add the required changes.
 
