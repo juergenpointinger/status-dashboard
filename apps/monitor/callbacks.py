@@ -30,20 +30,24 @@ def register_callbacks():
   for project in projects]
 
 def __get_pipeline_data(project_id, ref_name):
+  logger.info('Get pipeline data for monitor ({})'.format(project_id))  
   return gl.get_latest_pipeline(project_id, ref_name)
 
 def __get_active_jobs_data(project_id, pipeline_id):
+  logger.info('Get active jobs for monitor ({})'.format(project_id))
   return gl.get_active_jobs(project_id, pipeline_id)
 
 def __get_inactive_jobs_data(project_id, pipeline_id):
+  logger.info('Get inactive jobs for monitor ({})'.format(project_id))
   return gl.get_inactive_jobs(project_id, pipeline_id)
 
 def __get_test_report_data(project_id, pipeline_id):
+  logger.info('Get test report data for monitor ({})'.format(project_id))
   return gl.get_test_report(project_id, pipeline_id)
 
 def __register_project_callbacks(project_id, ref_name):
   """Register project specific callbacks"""
-  logger.info('Register project ({}) callbacks'.format(project_id))
+  logger.info('Register monitor project ({}) callbacks'.format(project_id))
 
   @app.callback(
     [Output('card-{}'.format(project_id), 'children'),
@@ -90,14 +94,14 @@ def __register_project_callbacks(project_id, ref_name):
           joint_jobs = joint_jobs + ', ' + job_name
 
     test_details = ''
-    if 'failed' == status:
-      test_report = __get_test_report_data(project_id, pipeline_id)
-      if 'total_count' in test_report and test_report['total_count'] > 0:
-        test_details = 'Total ({}): Success ({}), Skipped ({}), Failed ({})'.format(
-          test_report['total_count'],
-          test_report['success_count'],
-          test_report['skipped_count'],
-          test_report['failed_count'])
+    # if 'failed' == status:
+    #   test_report = __get_test_report_data(project_id, pipeline_id)
+    #   if 'total_count' in test_report and test_report['total_count'] > 0:
+    #     test_details = 'Total ({}): Success ({}), Skipped ({}), Failed ({})'.format(
+    #       test_report['total_count'],
+    #       test_report['success_count'],
+    #       test_report['skipped_count'],
+    #       test_report['failed_count'])
 
     return [dbc.CardHeader(name),
             dbc.CardBody([

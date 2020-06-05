@@ -5,6 +5,7 @@ import logging
 
 # Third party imports
 from dash.dependencies import Input, Output, State
+from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import dash_html_components as html
 import numpy as np
@@ -26,36 +27,21 @@ if projects is None:
 
 gl = GitLab()
 
-def normalize_session_hourly_data():
-  logger.debug('Normalize hourly data')
-  data = signals.get_session_hourly_data()
-  if data is None:
-    logger.debug('[ISSUES] No data available, prevent update for now')
-    raise PreventUpdate
-  elif 'milestones' not in data:
-    logger.warning('[ISSUES] No milestone data available, prevent update for now')
-    raise PreventUpdate
-  if len(data['milestones']) == 0:
-    logger.warning('[ISSUES] Empty milestone data, prevent update for now')
-    raise PreventUpdate
-  normalized_data = json_normalize(data['milestones'])
-  return normalized_data
-
-def normalize_session_short_data(data_type, project_id):
-  logger.debug('Normalize short data: ' + data_type)
-  data = signals.get_session_short_data()
-  if data is None or data_type not in data or len(data[data_type]) == 0:
+def normalize_data(data, project_id = None, prevent_update = False):
+  if data is None or len(data) == 0:
+    if prevent_update: raise PreventUpdate
     return []
   
-  df = json_normalize(data[data_type])
-
-  if 'project_id' not in df:
-    return []
-
-  retval = df[df['project_id'] == project_id]
-  if len(retval) == 0:
-    return []
-  return retval
+  df = json_normalize(data)
+  if project_id is not None:
+    if 'project_id' not in df:
+      if prevent_update: raise PreventUpdate
+      return None
+    df = df[df['project_id'] == project_id].copy()
+    if len(df) == 0:
+      if prevent_update: raise PreventUpdate
+      return None
+  return df
 
 def register_callbacks():
   """Register application callbacks"""
@@ -65,12 +51,16 @@ def register_callbacks():
 
 def __register_group_callbacks():
   """Register group specific callbacks"""
-  logger.info('Register group callbacks')
+  logger.info('Register dashboard group callbacks')
   
-  @app.callback(Output('graph_group_velocity', 'figure'),
-    [Input('session-hourly', 'children')])
-  def __render_velocity(signal):
-    milestones = normalize_session_hourly_data()
+  @app.callback(
+    Output('graph_group_velocity', 'figure'),
+    [Input('memory-milestones', 'modified_timestamp')],
+    [State('memory-milestones', 'data')])
+  def __render_velocity(ts, data):
+    if ts is None:
+      raise PreventUpdate
+    milestones = normalize_data(data, prevent_update=True)
     
     velocity_by_milestone = milestones.groupby('milestone.title')[['weight']].sum()
     closed_by_milestone = milestones.query('state=="closed"').groupby('milestone.title')[['weight']].sum()
@@ -106,12 +96,15 @@ def __register_group_callbacks():
         yaxis_title='Weights'
       ))
 
-  @app.callback(Output('graph_group_issues', 'figure'),
-    [Input('session-hourly', 'children')])
-  def __render_issues(signal):
-    milestones = normalize_session_hourly_data()
+  @app.callback(
+    Output('graph_group_issues', 'figure'),
+    [Input('memory-milestones', 'modified_timestamp')],
+    [State('memory-milestones', 'data')])
+  def __render_issues(ts, data):
+    if ts is None:
+      raise PreventUpdate
+    milestones = normalize_data(data, prevent_update=True)
 
-    ts = pd.Timestamp
     milestones['issue_created'] = pd.to_datetime(milestones['created_at'])
     milestones['issue_created'] = pd.to_datetime(milestones['issue_created'], utc=True)
     milestones['issue_updated'] = pd.to_datetime(milestones['updated_at'])
@@ -175,7 +168,7 @@ def __register_group_callbacks():
 
 def __register_project_callbacks(project_id, ref_name):
   """Register project specific callbacks"""
-  logger.info('Register project ({}) callbacks'.format(project_id))
+  logger.info('Register dashboard project ({}) callbacks'.format(project_id))
 
   ###############################################################
   ## Deployments
@@ -183,26 +176,28 @@ def __register_project_callbacks(project_id, ref_name):
   @app.callback(
     [Output('project-{}-deployments'.format(project_id), 'figure'),
      Output('project-{}-deployments-details'.format(project_id), 'children')],
-    [Input('session-short', 'children')])
-  def __render_deployments(signal):
-    deployments = normalize_session_short_data('deployments', project_id)
-
-    if len(deployments) == 0:
+    [Input('memory-deployments', 'modified_timestamp')],
+    [State('memory-deployments', 'data')])
+  def __render_deployments(ts, data):
+    if ts is None:
+      raise PreventUpdate
+    df = normalize_data(data, project_id)
+    if df is None:
       return layouts.render_empty_plot_layout("Deployments by date", 400), []
     
-    deployments['date'] =  pd.to_datetime(deployments['created_at'])
-    deployments['date'] =  pd.to_datetime(deployments['date'], utc=True)
-    deployments['deployment_date'] = deployments['date'].dt.date
+    df['date'] =  pd.to_datetime(df['created_at'])
+    df['date'] =  pd.to_datetime(df['date'], utc=True)
+    df['deployment_date'] = df['date'].dt.date
 
     # Drop unnecessary columns
-    deployments = deployments[['id', 'deployment_date', 'status', 'environment.name']]
+    df = df[['id', 'deployment_date', 'status', 'environment.name']]
 
     # Show only successful deployments
-    staging_deployments = deployments.query('`environment.name`=="staging"')
+    staging_deployments = df.query('`environment.name`=="staging"')
     staging_deployments_by_day = staging_deployments.groupby('deployment_date')[['id']].count()
     staging_deployments_by_day = staging_deployments_by_day.rename(columns = {'id': 'deployment_count'})
 
-    production_deployments = deployments.query('`environment.name`=="production"')
+    production_deployments = df.query('`environment.name`=="production"')
     production_deployments_by_day = production_deployments.groupby('deployment_date')[['id']].count()
     production_deployments_by_day = production_deployments_by_day.rename(columns = {'id': 'deployment_count'})
 
@@ -251,21 +246,23 @@ def __register_project_callbacks(project_id, ref_name):
 
   @app.callback(
     Output('project-{}-commits'.format(project_id), 'figure'),
-    [Input('session-short', 'children')])
-  def __render_commits(signal):
-    commits = normalize_session_short_data('commits', project_id)
-
-    if len(commits) == 0:
+    [Input('memory-commits', 'modified_timestamp')],
+    [State('memory-commits', 'data')])
+  def __render_commits(ts, data):
+    if ts is None:
+      raise PreventUpdate
+    df = normalize_data(data, project_id)
+    if df is None:
       return layouts.render_empty_plot_layout("Commits by date", 400)
 
-    commits['date'] = pd.to_datetime(commits['created_at'])
-    commits['date'] = pd.to_datetime(commits['date'], utc=True)
-    commits['commit_date'] = commits['date'].dt.date
+    df['date'] = pd.to_datetime(df['created_at'])
+    df['date'] = pd.to_datetime(df['date'], utc=True)
+    df['commit_date'] = df['date'].dt.date
 
     # Drop unnecessary columns
-    commits = commits[['short_id', 'author_name', 'commit_date']]
+    df = df[['short_id', 'author_name', 'commit_date']]
 
-    commits_by_day = commits.groupby('commit_date')[['short_id']].count()
+    commits_by_day = df.groupby('commit_date')[['short_id']].count()
     commits_by_day = commits_by_day.rename(columns = {'short_id': 'commit_count'})
 
     return go.Figure(
@@ -291,24 +288,26 @@ def __register_project_callbacks(project_id, ref_name):
 
   @app.callback(
     Output('project-{}-pipelines'.format(project_id), 'figure'),
-    [Input('session-short', 'children')])
-  def __render_pipelines(signal):
-    pipelines = normalize_session_short_data('pipelines', project_id)
-
-    if len(pipelines) == 0:
+    [Input('memory-pipelines', 'modified_timestamp')],
+    [State('memory-pipelines', 'data')])
+  def __render_pipelines(ts, data):
+    if ts is None:
+      raise PreventUpdate
+    df = normalize_data(data, project_id)
+    if df is None:
       return layouts.render_empty_plot_layout("Pipeline runs by date", 400)
 
-    pipelines['date'] = pd.to_datetime(pipelines['created_at'])
-    pipelines['date'] = pd.to_datetime(pipelines['date'], utc=True)
-    pipelines['pipeline_date'] = pipelines['date'].dt.date
+    df['date'] = pd.to_datetime(df['created_at'])
+    df['date'] = pd.to_datetime(df['date'], utc=True)
+    df['pipeline_date'] = df['date'].dt.date
 
     # Drop unnecessary columns
-    pipelines = pipelines[['sha', 'pipeline_date', 'status', 'coverage']]
+    df = df[['sha', 'pipeline_date', 'status', 'coverage']]
 
-    success_by_date = pipelines.query('status=="success"').groupby('pipeline_date')[['sha']].count()
+    success_by_date = df.query('status=="success"').groupby('pipeline_date')[['sha']].count()
     success_by_date = success_by_date.rename(columns = {'sha': 'value'})
 
-    failed_by_date = pipelines.query('status=="failed"').groupby('pipeline_date')[['sha']].count()
+    failed_by_date = df.query('status=="failed"').groupby('pipeline_date')[['sha']].count()
     failed_by_date = failed_by_date.rename(columns = {'sha': 'value'})
 
     return go.Figure(
@@ -340,14 +339,17 @@ def __register_project_callbacks(project_id, ref_name):
 
   @app.callback(
     Output('project-{}-badges'.format(project_id), 'children'),
-    [Input('session-short', 'children')])
-  def __render_badges(signal):
-    retval = []
-    pipelines = normalize_session_short_data('pipelines', project_id)
+    [Input('memory-pipelines', 'modified_timestamp')],
+    [State('memory-pipelines', 'data')])
+  def __render_badges(ts, data):
+    if ts is None:
+      raise PreventUpdate    
+    df = normalize_data(data, project_id)
 
-    sort_by_id = pipelines
-    if len(pipelines) > 0:
-      sort_by_id = pipelines.sort_values('id')
+    retval = []
+    sort_by_id = []
+    if df is not None and len(df) > 0:
+      sort_by_id = df.sort_values('id')
 
     latest_status = 'unknown'
     latest_url = '#'
@@ -402,21 +404,23 @@ def __register_project_callbacks(project_id, ref_name):
 
   @app.callback(
     Output('project-{}-coverage'.format(project_id), 'figure'),
-    [Input('session-short', 'children')])
-  def __render_coverage(signal):
-    pipelines = normalize_session_short_data('pipelines', project_id)
-
-    if len(pipelines) == 0:
+    [Input('memory-pipelines', 'modified_timestamp')],
+    [State('memory-pipelines', 'data')])
+  def __render_coverage(ts, data):
+    if ts is None:
+      raise PreventUpdate
+    df = normalize_data(data, project_id)
+    if df is None:
       return layouts.render_empty_plot_layout("Coverage by date", 500)
 
-    pipelines['date'] =  pd.to_datetime(pipelines['created_at'])
-    pipelines['date'] =  pd.to_datetime(pipelines['date'], utc=True)
-    pipelines['pipeline_date'] = pipelines['date'].dt.date
+    df['date'] =  pd.to_datetime(df['created_at'])
+    df['date'] =  pd.to_datetime(df['date'], utc=True)
+    df['pipeline_date'] = df['date'].dt.date
 
     # Drop unnecessary columns
-    pipelines = pipelines[['sha', 'pipeline_date', 'status', 'coverage']]
+    df = df[['sha', 'pipeline_date', 'status', 'coverage']]
 
-    coverage_by_date = pipelines.groupby('pipeline_date')[['coverage']].agg(np.mean)
+    coverage_by_date = df.groupby('pipeline_date')[['coverage']].agg(np.mean)
     coverage_by_date = coverage_by_date.rename(columns = {'coverage': 'coverage_agg'})
 
     return go.Figure(
@@ -438,30 +442,32 @@ def __register_project_callbacks(project_id, ref_name):
 
   @app.callback(
     Output('project-{}-testreport'.format(project_id), 'figure'),
-    [Input('session-short', 'children')])
-  def __render_testreport(signal):
-    pipelines = normalize_session_short_data('pipelines', project_id)
-
-    if len(pipelines) == 0:
+    [Input('memory-pipelines', 'modified_timestamp')],
+    [State('memory-pipelines', 'data')])
+  def __render_testreport(ts, data):
+    if ts is None:
+      raise PreventUpdate    
+    df = normalize_data(data, project_id)
+    if df is None:
       return layouts.render_empty_plot_layout("Tests by date", 500)
 
-    pipelines['date'] =  pd.to_datetime(pipelines['created_at'])
-    pipelines['date'] =  pd.to_datetime(pipelines['date'], utc=True)
-    pipelines['pipeline_date'] = pipelines['date'].dt.date
+    df['date'] =  pd.to_datetime(df['created_at'])
+    df['date'] =  pd.to_datetime(df['date'], utc=True)
+    df['pipeline_date'] = df['date'].dt.date
 
     # Drop unnecessary columns
-    pipelines = pipelines[['sha', 'pipeline_date', 'total_time', 'total_count', 'success_count', 'failed_count', 'skipped_count', ]]
+    df = df[['sha', 'pipeline_date', 'total_time', 'total_count', 'success_count', 'failed_count', 'skipped_count', ]]
 
-    total_by_date = pipelines.groupby('pipeline_date')[['total_count']].agg(np.mean)
+    total_by_date = df.groupby('pipeline_date')[['total_count']].agg(np.mean)
     total_by_date = total_by_date.rename(columns = {'total_count': 'value'})
 
-    success_by_date = pipelines.groupby('pipeline_date')[['success_count']].agg(np.mean)
+    success_by_date = df.groupby('pipeline_date')[['success_count']].agg(np.mean)
     success_by_date = success_by_date.rename(columns = {'success_count': 'value'})
 
-    skipped_by_date = pipelines.groupby('pipeline_date')[['skipped_count']].agg(np.mean)
+    skipped_by_date = df.groupby('pipeline_date')[['skipped_count']].agg(np.mean)
     skipped_by_date = skipped_by_date.rename(columns = {'skipped_count': 'value'})
 
-    failed_by_date = pipelines.groupby('pipeline_date')[['failed_count']].agg(np.mean)
+    failed_by_date = df.groupby('pipeline_date')[['failed_count']].agg(np.mean)
     failed_by_date = failed_by_date.rename(columns = {'failed_count': 'value'})
 
     return go.Figure(

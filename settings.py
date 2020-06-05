@@ -20,6 +20,8 @@ APP_HOST=os.getenv('APP_HOST', '0.0.0.0')
 APP_ROOT=os.getcwd()
 # Dash server port
 APP_PORT=os.getenv('APP_PORT', 5000)
+# Redis url
+REDIS_URL=os.getenv('REDIS_URL', 'redis://localhost:6379')
 
 # GitLab URL
 GITLAB_API_URL=os.getenv('GITLAB_API_URL', 'https://gitlab.com/api/v4')
