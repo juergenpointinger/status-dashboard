@@ -2,11 +2,13 @@
 **/.classpath
 **/.dockerignore
 **/.env
+**/.env*
 **/.git
 **/.gitignore
 **/.project
 **/.settings
 **/.toolstarget
+**/.venv
 **/.vs
 **/.vscode
 **/*.*proj.user
@@ -14,9 +16,11 @@
 **/*.jfm
 **/azds.yaml
 **/bin
+**/cache-directory
 **/charts
 **/docker-compose*
 **/Dockerfile*
+**/docs
 **/node_modules
 **/npm-debug.log
 **/obj
