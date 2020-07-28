@@ -46,17 +46,20 @@ Rename your `.env.example` to `.env` and add the required changes.
 
 ```bash
 $ pip install -r requirements.txt
+$ python3 index.py
 ```
 
 ## Run via Docker
 
 ```bash
+$ docker run --rm --name redis -p 6379:6379 redis:6.0-alpine
 $ docker run --rm --env-file .env --name status-dashboard -p 5000:5000 juergenpointinger/status-dashboard:latest
 ```
 
 ## Build via Docker
 
 ```bash
+$ docker-compose up -d
 $ docker build . -t juergenpointinger/status-dashboard:latest
 $ docker run --rm --name status-dashboard -p 5000:5000 juergenpointinger/status-dashboard:latest
 ```
