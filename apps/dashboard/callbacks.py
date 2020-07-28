@@ -33,6 +33,7 @@ def normalize_data(data, project_id = None, prevent_update = False):
     return []
   
   df = json_normalize(data)
+  
   if project_id is not None:
     if 'project_id' not in df:
       if prevent_update: raise PreventUpdate
@@ -182,7 +183,7 @@ def __register_project_callbacks(project_id, ref_name):
     if ts is None:
       raise PreventUpdate
     df = normalize_data(data, project_id)
-    if df is None:
+    if df is None or len(df) == 0:
       return layouts.render_empty_plot_layout("Deployments by date", 400), []
     
     df['date'] =  pd.to_datetime(df['created_at'])
@@ -252,7 +253,7 @@ def __register_project_callbacks(project_id, ref_name):
     if ts is None:
       raise PreventUpdate
     df = normalize_data(data, project_id)
-    if df is None:
+    if df is None or len(df) == 0:
       return layouts.render_empty_plot_layout("Commits by date", 400)
 
     df['date'] = pd.to_datetime(df['created_at'])
@@ -294,7 +295,7 @@ def __register_project_callbacks(project_id, ref_name):
     if ts is None:
       raise PreventUpdate
     df = normalize_data(data, project_id)
-    if df is None:
+    if df is None or len(df) == 0:
       return layouts.render_empty_plot_layout("Pipeline runs by date", 400)
 
     df['date'] = pd.to_datetime(df['created_at'])
@@ -410,7 +411,7 @@ def __register_project_callbacks(project_id, ref_name):
     if ts is None:
       raise PreventUpdate
     df = normalize_data(data, project_id)
-    if df is None:
+    if df is None or len(df) == 0:
       return layouts.render_empty_plot_layout("Coverage by date", 500)
 
     df['date'] =  pd.to_datetime(df['created_at'])
@@ -448,7 +449,7 @@ def __register_project_callbacks(project_id, ref_name):
     if ts is None:
       raise PreventUpdate    
     df = normalize_data(data, project_id)
-    if df is None:
+    if df is None or len(df) == 0:
       return layouts.render_empty_plot_layout("Tests by date", 500)
 
     df['date'] =  pd.to_datetime(df['created_at'])

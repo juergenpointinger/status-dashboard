@@ -9,6 +9,7 @@ import settings
 logger = logging.getLogger(__name__)
 
 class GitLab():
+  version=''
 
   def __init__(self):
     self.api = settings.GITLAB_API_URL    # instance variable unique to each instance
@@ -17,12 +18,13 @@ class GitLab():
       'PRIVATE-TOKEN': settings.GITLAB_TOKEN
     }
     self.gl_session.verify=True
+    self.get_version()
 
   # We want to see the last 2 weeks
-  def timespan(self):
+  def __timespan(self):
     return datetime.now() - timedelta(days=14)
 
-  def get_request(self, endpoint):
+  def __get_request(self, endpoint):
     url = self.api + endpoint
     logger.debug('GitLab request: ' + url)  
     response = self.gl_session.get(url = url)
@@ -31,7 +33,7 @@ class GitLab():
       logger.error('{}: {}'.format(endpoint, response.text))
     return response
 
-  def get_all_pages(self, endpoint):
+  def __get_all_pages(self, endpoint):
     retval = []
     query_separator = '&' if endpoint.find('?') != -1 else '?'
 
@@ -39,7 +41,7 @@ class GitLab():
     next = True
     while next == True:
       
-      response = self.get_request(endpoint + query_separator + 'page={}&per_page=100'.format(page_index) )
+      response = self.__get_request(endpoint + query_separator + 'page={}&per_page=100'.format(page_index) )
       retval = retval + response.json()
 
       if 'X-Next-Page' in response.headers and not response.headers['X-Next-Page']:
@@ -54,14 +56,26 @@ class GitLab():
 
   ##########################################################
 
+  def __version(self):
+    return GitLab.version.split('.')
+
+  def get_version(self):
+    response = self.__get_request('/version')
+    if response.status_code == 200:
+      GitLab.version = response.json()['version']
+      return GitLab.version
+    return ''
+
+  ##########################################################
+
   def get_group_name(self, group_id):
-    response = self.get_request('/groups/{}'.format(group_id))
+    response = self.__get_request('/groups/{}'.format(group_id))
     if response.status_code == 200:
       return response.json()['name']
     return ''
 
   def get_project_name(self, project_id):
-    response = self.get_request('/projects/{}'.format(project_id))
+    response = self.__get_request('/projects/{}'.format(project_id))
     if response.status_code == 200:
       return response.json()['name']
     return ''
@@ -69,14 +83,14 @@ class GitLab():
   ##########################################################
 
   def get_commits(self, project_id, ref_name):
-    issues = self.get_all_pages('/projects/{}/repository/commits?ref_name={}&since={}'.format(project_id, ref_name, self.timespan()))
+    issues = self.__get_all_pages('/projects/{}/repository/commits?ref_name={}&since={}'.format(project_id, ref_name, self.__timespan()))
     retval = [dict(issue, **{'project_id': project_id}) for issue in issues]
     return retval
 
   ##########################################################
 
   def get_issues(self, group_id, search):
-    return self.get_all_pages('/groups/{}/issues?{}&scope=all'.format(group_id, search))
+    return self.__get_all_pages('/groups/{}/issues?{}&scope=all'.format(group_id, search))
 
   ##########################################################
 
@@ -86,7 +100,6 @@ class GitLab():
     total_issue_weight = 0
     closed_issue_weight = 0
     for issue in issues:
-      issue_id = issue['id']
       issue_state = issue['state']
 
       # Weights
@@ -104,7 +117,7 @@ class GitLab():
     return milestone['title']
 
   def get_milestones(self, group_id):
-    milestones = self.get_all_pages('/groups/{}/milestones?search=Sprint'.format(group_id))
+    milestones = self.__get_all_pages('/groups/{}/milestones?search=Sprint'.format(group_id))
     if len(milestones) == 0:
       return []
 
@@ -115,37 +128,42 @@ class GitLab():
     retval = []
     for milestone in milestones:
       milestone_id = str(milestone['id'])
-      issues = self.get_all_pages('/groups/{}/milestones/{}/issues'.format(group_id, milestone_id))
+      issues = self.__get_all_pages('/groups/{}/milestones/{}/issues'.format(group_id, milestone_id))
       if len(issues) > 0:
-        retval = retval + issues
+        retval.append(issues)
     return retval
 
   ##########################################################
 
   def get_active_jobs(self, project_id, pipeline_id):
     retval = []
-    response = self.get_request('/projects/{}/pipelines/{}/jobs?scope[]=pending&scope[]=running&scope[]=manual'.format(project_id, pipeline_id))
+    response = self.__get_request('/projects/{}/pipelines/{}/jobs?scope[]=pending&scope[]=running&scope[]=manual'.format(project_id, pipeline_id))
     if response.status_code == 200:
       retval = response.json()
     return retval
 
   def get_inactive_jobs(self, project_id, pipeline_id):
     retval = []
-    response = self.get_request('/projects/{}/pipelines/{}/jobs?scope[]=failed&scope[]=canceled'.format(project_id, pipeline_id))
+    response = self.__get_request('/projects/{}/pipelines/{}/jobs?scope[]=failed&scope[]=canceled'.format(project_id, pipeline_id))
     if response.status_code == 200:
       retval = response.json()
     return retval
 
   def get_test_report(self, project_id, pipeline_id):    
     retval = []
-    response = self.get_request('/projects/{}/pipelines/{}/test_report'.format(project_id, pipeline_id))
+    major_version = int(self.__version()[0])
+    if major_version < 13:
+      logger.warning('GitLab version ({}) is not support test_report endpoint'.format(GitLab.version))
+      return retval
+
+    response = self.__get_request('/projects/{}/pipelines/{}/test_report'.format(project_id, pipeline_id))
     if response.status_code == 200:
       retval = response.json()
     return retval
 
   def get_latest_pipeline(self, project_id, ref_name):
     retval = None
-    response = self.get_request('/projects/{}/pipelines?ref={}&per_page=1&page=1'.format(project_id, ref_name))
+    response = self.__get_request('/projects/{}/pipelines?ref={}&per_page=1&page=1'.format(project_id, ref_name))
     
     if response.status_code != 200:
       return retval
@@ -160,7 +178,7 @@ class GitLab():
       pipeline.update({'project_name': self.get_project_name(project_id)})
 
       # Add details
-      response = self.get_request('/projects/{}/pipelines/{}'.format(project_id, pipeline['id']))
+      response = self.__get_request('/projects/{}/pipelines/{}'.format(project_id, pipeline['id']))
       detail = response.json() if response.status_code == 200 else None      
       if detail is not None:
         coverage = detail['coverage'] if detail['coverage'] is not None else 0
@@ -175,51 +193,51 @@ class GitLab():
     return retval
 
   def get_pipelines(self, project_id, ref_name):
-    pipelines = self.get_all_pages('/projects/{}/pipelines?ref={}&scope=finished&updated_after={}'.format(project_id, ref_name, self.timespan()))
+    pipelines = self.__get_all_pages('/projects/{}/pipelines?ref={}&scope=finished&updated_after={}'.format(project_id, ref_name, self.__timespan()))
     
     retval = []
     for pipeline in pipelines:
       pipeline_id = pipeline['id']       
       pipeline_details = pipeline.copy()
 
-      response = self.get_request('/projects/{}/pipelines/{}'.format(project_id, pipeline_id))
-      detail = response.json() if response.status_code == 200 else None
-
-      response = self.get_request('/projects/{}/pipelines/{}/test_report'.format(project_id, pipeline_id))
-      test_report = response.json() if response.status_code == 200 else None
-
       # Add project id/name
       pipeline_details.update({'project_id': project_id})
       pipeline_details.update({'project_name': self.get_project_name(project_id)})
 
+      response = self.__get_request('/projects/{}/pipelines/{}'.format(project_id, pipeline_id))
+      detail = response.json() if response.status_code == 200 else None
+
       # Add coverage details
+      pipeline_details.update({'duration': 0})
+      pipeline_details.update({'coverage': 0.0})
+
       if detail is not None:
         coverage = detail['coverage'] if detail['coverage'] is not None else 0
         duration = detail['duration'] if detail['duration'] is not None else 0
         pipeline.update({'duration': int(duration)})
         pipeline_details.update({'coverage': float(coverage)})
-      else:
-        pipeline_details.update({'duration': 0})
-        pipeline_details.update({'coverage': 0.0})
 
       # Add test report details
-      if test_report is not None:
-        pipeline_details.update({'total_time': test_report['total_time']})
-        pipeline_details.update({'total_count': test_report['total_count']})
-        pipeline_details.update({'success_count': test_report['success_count']})
-        pipeline_details.update({'failed_count': test_report['failed_count']})
-        pipeline_details.update({'total_time': test_report['total_time']})
-        pipeline_details.update({'skipped_count': test_report['skipped_count']})
-        pipeline_details.update({'error_count': test_report['error_count']})
-      else:
-        pipeline_details.update({'total_time': 0})
-        pipeline_details.update({'total_count': 0})
-        pipeline_details.update({'success_count': 0})
-        pipeline_details.update({'failed_count': 0})
-        pipeline_details.update({'total_time': 0})
-        pipeline_details.update({'skipped_count': 0})
-        pipeline_details.update({'error_count': 0})
-      
+      pipeline_details.update({'total_time': 0})
+      pipeline_details.update({'total_count': 0})
+      pipeline_details.update({'success_count': 0})
+      pipeline_details.update({'failed_count': 0})
+      pipeline_details.update({'total_time': 0})
+      pipeline_details.update({'skipped_count': 0})
+      pipeline_details.update({'error_count': 0})
+
+      major_version = int(self.__version()[0])
+      if major_version >= 13:
+        response = self.__get_request('/projects/{}/pipelines/{}/test_report'.format(project_id, pipeline_id))
+        test_report = response.json() if response.status_code == 200 else None
+        if test_report is not None:
+          pipeline_details.update({'total_time': test_report['total_time']})
+          pipeline_details.update({'total_count': test_report['total_count']})
+          pipeline_details.update({'success_count': test_report['success_count']})
+          pipeline_details.update({'failed_count': test_report['failed_count']})
+          pipeline_details.update({'total_time': test_report['total_time']})
+          pipeline_details.update({'skipped_count': test_report['skipped_count']})
+          pipeline_details.update({'error_count': test_report['error_count']})
       retval.append(pipeline_details)
 
     return retval
@@ -227,6 +245,6 @@ class GitLab():
   ##########################################################
 
   def get_deployments(self, project_id):
-    deployments = self.get_all_pages('/projects/{}/deployments?&updated_after={}&status=success'.format(project_id, self.timespan()))
+    deployments = self.__get_all_pages('/projects/{}/deployments?&updated_after={}&status=success'.format(project_id, self.__timespan()))
     retval = [dict(deployment, **{'project_id': project_id}) for deployment in deployments]
     return retval

@@ -9,11 +9,15 @@ from flask_caching import Cache
 import plotly.io as pio
 
 # Local application imports
+from modules.gitlab import GitLab
 import settings
 
 # Initialize logging mechanism
 logging.basicConfig(level=settings.LOGLEVEL, format=settings.LOGFORMAT)
 logger = logging.getLogger(__name__)
+
+gl = GitLab()
+logger.info("Current GitLab version: {}".format(GitLab.version))
 
 # App instance
 app = dash.Dash(__name__,   
