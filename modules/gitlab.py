@@ -127,10 +127,12 @@ class GitLab():
 
     retval = []
     for milestone in milestones:
-      milestone_id = str(milestone['id'])
-      issues = self.__get_all_pages('/groups/{}/milestones/{}/issues'.format(group_id, milestone_id))
+      # milestone_id = str(milestone['id'])
+      milestone_title = str(milestone['title'])
+      # issues = self.__get_all_pages('/groups/{}/milestones/{}/issues'.format(group_id, milestone_id))
+      issues = self.__get_all_pages('/groups/{}/issues?milestone={}&scope=all'.format(group_id, milestone_title))
       if len(issues) > 0:
-        retval.append(issues)
+        retval = retval + issues
     return retval
 
   ##########################################################
