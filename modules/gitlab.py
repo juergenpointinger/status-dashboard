@@ -90,24 +90,11 @@ class GitLab():
   ##########################################################
 
   def get_issues(self, group_id, search):
-    return self.__get_all_pages('/groups/{}/issues?{}&scope=all'.format(group_id, search))
+    issues = self.__get_all_pages('/groups/{}/issues?{}&scope=all&created_after={}'.format(group_id, search, self.__timespan()))
+    retval = [dict(issue, **{'project_name': self.get_project_name(issue['project_id'])}) for issue in issues]
+    return retval
 
   ##########################################################
-
-  def get_weights(self, group_id, search):
-    issues = self.get_issues(group_id, search)
-    
-    total_issue_weight = 0
-    closed_issue_weight = 0
-    for issue in issues:
-      issue_state = issue['state']
-
-      # Weights
-      issue_weight = (issue['weight'] if issue['weight'] is not None else 0)
-      total_issue_weight += issue_weight
-      if issue_state == 'closed' and issue_weight > 0:
-        closed_issue_weight += issue_weight
-    return { 'total': total_issue_weight, 'closed': closed_issue_weight }
 
   def no_upcoming_milestones_predicate(self, milestone):
     today = datetime.now().strftime("%Y-%m-%d")

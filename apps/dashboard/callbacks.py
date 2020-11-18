@@ -8,6 +8,7 @@ from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import dash_html_components as html
+import dash_bootstrap_components as dbc
 import numpy as np
 import pandas as pd
 from pandas import json_normalize
@@ -126,8 +127,8 @@ def __register_group_callbacks():
     udpated_by_milestone = udpated_by_milestone.rename(columns = {'id': 'issue_count'})
 
     # Show defects
-    defects_by_milestone = milestones[milestones['labels'].apply(lambda x: 'Bug::high' in x or 'Bug::medium' in x or 'Bug::low' in x)]
-    defects_by_milestone= defects_by_milestone.groupby('milestone.title')[['id']].count()
+    defects_by_milestone = milestones[milestones['labels'].apply(lambda x: 'Bug::critical' in x or 'Bug::major' in x or 'Bug::minor' in x or 'Bug::trivial' in x)]
+    defects_by_milestone = defects_by_milestone.groupby('milestone.title')[['id']].count()
     defects_by_milestone = defects_by_milestone.rename(columns = {'id': 'issue_count'})
 
     return go.Figure(
