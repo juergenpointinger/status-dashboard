@@ -13,9 +13,10 @@ It uses GitLab APIs and is based on Python with Plotly Dash.
 
 Tested with:
 
-- Python 3.8
-- Dash 1.12.0
-- GitLab 13+
+- Python 3.10
+- Dash 2.7.0
+- Plotly 5.12
+- GitLab 15+
 
 ## Routes
 
@@ -31,7 +32,6 @@ Tested with:
 | GITLAB_TOKEN       | GitLab token will be used whenever the API is invoked | |
 | GITLAB_GROUP_ID    | GitLab group id | |
 | GITLAB_PROJECT_IDS | GitLab project id list (Json format) | see `.env.example` for details |
-| FLASK_ENV          | Setting FLASK_ENV to `development` will enable debug mode | production |
 | DEBUG              | Debug mode (optional) | false |
 | LOGLEVEL           | Logging level (optional) | INFO |
 | LOGFORMAT          | Logging format output (optional) | %(asctime)s - %(levelname)s - %(message)s |
@@ -52,7 +52,7 @@ $ python3 index.py
 ## Run via Docker
 
 ```bash
-$ docker run --rm --name redis -p 6379:6379 redis:6.0-alpine
+$ docker run --rm --name redis -p 6379:6379 redis:7.0-alpine
 $ docker run --rm --env-file .env --name status-dashboard -p 5000:5000 juergenpointinger/status-dashboard:latest
 ```
 

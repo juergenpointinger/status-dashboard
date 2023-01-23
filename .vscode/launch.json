@@ -10,8 +10,8 @@
             "request": "launch",
             "program": "index.py",
             "env": {
-                "FLASK_ENV": "development",
-                "DEBUG": "1"
+                "DEBUG": "1",
+                "FLASK_DEBUG": "1"
             },
             "args": [
                 "run",

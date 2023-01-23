@@ -39,7 +39,8 @@ app.title = settings.APP_NAME
 CACHE_CONFIG = {
     # try 'filesystem' if you don't want to setup redis
     'CACHE_TYPE': 'redis',
-    'CACHE_REDIS_URL': settings.REDIS_URL
+    'CACHE_REDIS_URL': settings.REDIS_URL,
+    'CACHE_THRESHOLD': 200
 }
 cache = Cache()
 cache.init_app(app.server, config=CACHE_CONFIG)

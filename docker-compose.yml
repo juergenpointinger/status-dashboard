@@ -4,7 +4,7 @@ services:
 
   #Redis Service
   redis:
-    image: redis:6.0-alpine
+    image: redis:7.0-alpine
     restart: unless-stopped
     ports:
       - "6379:6379"

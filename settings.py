@@ -7,6 +7,8 @@ load_dotenv()
 
 # Debug mode
 DEBUG=True if int(os.getenv('DEBUG', 0)) == 1 else False
+FLASK_DEBUG=DEBUG
+
 # Logging level
 LOGLEVEL=os.getenv('LOGLEVEL', 'INFO')
 # Logging format

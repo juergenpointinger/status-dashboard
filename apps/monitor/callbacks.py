@@ -6,7 +6,7 @@ import logging
 # Third party imports
 from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
-import dash_html_components as html
+from dash import html
 import pandas as pd
 from pandas import json_normalize
 
@@ -41,9 +41,9 @@ def __get_inactive_jobs_data(project_id, pipeline_id):
   logger.info('Get inactive jobs for monitor ({})'.format(project_id))
   return gl.get_inactive_jobs(project_id, pipeline_id)
 
-def __get_test_report_data(project_id, pipeline_id):
+def __get_test_report_summary_data(project_id, pipeline_id):
   logger.info('Get test report data for monitor ({})'.format(project_id))
-  return gl.get_test_report(project_id, pipeline_id)
+  return gl.get_test_report_summary(project_id, pipeline_id)
 
 def __register_project_callbacks(project_id, ref_name):
   """Register project specific callbacks"""

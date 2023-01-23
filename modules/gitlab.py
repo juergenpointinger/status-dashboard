@@ -138,14 +138,14 @@ class GitLab():
       retval = response.json()
     return retval
 
-  def get_test_report(self, project_id, pipeline_id):    
+  def get_test_report_summary(self, project_id, pipeline_id):    
     retval = []
     major_version = int(self.__version()[0])
     if major_version < 13:
-      logger.warning('GitLab version ({}) is not support test_report endpoint'.format(GitLab.version))
+      logger.warning('GitLab version ({}) is not support test_report_summary endpoint'.format(GitLab.version))
       return retval
 
-    response = self.__get_request('/projects/{}/pipelines/{}/test_report'.format(project_id, pipeline_id))
+    response = self.__get_request('/projects/{}/pipelines/{}/test_report_summary'.format(project_id, pipeline_id))
     if response.status_code == 200:
       retval = response.json()
     return retval
@@ -216,17 +216,16 @@ class GitLab():
       pipeline_details.update({'error_count': 0})
 
       major_version = int(self.__version()[0])
-      if major_version >= 13:
-        response = self.__get_request('/projects/{}/pipelines/{}/test_report'.format(project_id, pipeline_id))
+      if major_version >= 15:
+        response = self.__get_request('/projects/{}/pipelines/{}/test_report_summary'.format(project_id, pipeline_id))
         test_report = response.json() if response.status_code == 200 else None
         if test_report is not None:
-          pipeline_details.update({'total_time': test_report['total_time']})
-          pipeline_details.update({'total_count': test_report['total_count']})
-          pipeline_details.update({'success_count': test_report['success_count']})
-          pipeline_details.update({'failed_count': test_report['failed_count']})
-          pipeline_details.update({'total_time': test_report['total_time']})
-          pipeline_details.update({'skipped_count': test_report['skipped_count']})
-          pipeline_details.update({'error_count': test_report['error_count']})
+          pipeline_details.update({'total_time': test_report['total']['time']})
+          pipeline_details.update({'total_count': test_report['total']['count']})
+          pipeline_details.update({'success_count': test_report['total']['success']})
+          pipeline_details.update({'failed_count': test_report['total']['failed']})
+          pipeline_details.update({'skipped_count': test_report['total']['skipped']})
+          pipeline_details.update({'error_count': test_report['total']['error']})
       retval.append(pipeline_details)
 
     return retval

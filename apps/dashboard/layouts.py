@@ -2,8 +2,7 @@
 import uuid
 
 # Third party imports
-import dash_core_components as dcc
-import dash_html_components as html
+from dash import dcc, html
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 
@@ -132,7 +131,7 @@ serve_layout = [
 
   # Projects
   html.Div(id='project', children=[
-    dbc.Tabs(id='project-tabs', card=True, children=__serve_projects_layout()),
+    dbc.Tabs(id='project-tabs', children=__serve_projects_layout()),
     dbc.CardBody(dcc.Loading(children=[html.P(id="project-card-content")], type="circle")),
   ]),
 ]
